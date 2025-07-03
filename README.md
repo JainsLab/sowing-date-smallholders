@@ -8,7 +8,8 @@ The primary study area for this public repository is **Bihar, India**.
 ## 📂 Repository Structure
 
 The project is organized into a clear, reproducible structure:
-
+```
+.
 .
 ├── data/
 │   └── field_data/         # Contains input survey data and field boundaries (GPKG)
@@ -24,8 +25,8 @@ The project is organized into a clear, reproducible structure:
 │   ├── sowing_date_functions.py    # Functions for smoothing and SOS detection
 │   └── metric_evaluation_functions.py # Functions for model evaluation (Pontius metrics)
 └── README.md                   # This file
+```
 
----
 
 ## 🚀 Workflow and How to Run
 
@@ -35,7 +36,7 @@ Follow these steps to set up your environment and run the analysis pipeline from
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/JainsLab/sowing-date-smallholders.git](https://github.com/JainsLab/sowing-date-smallholders.git)
+    git clone https://github.com/JainsLab/sowing-date-smallholders.git
     cd sowing-date-smallholders
     ```
 
