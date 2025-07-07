@@ -11,7 +11,7 @@ from scipy import stats
 def pontius_equations(df, colx, coly):
     """
     Calculates a suite of comparison metrics for continuous data based on the work of Pontius.
-
+    https://wordpress.clarku.edu/rpontius/wp-content/uploads/sites/884/2024/10/Pontius-Jr-2022-Metrics-That-Make-a-Difference.pdf
     Args:
         df (pd.DataFrame): DataFrame containing the data.
         colx (str): The column name for the reference data (e.g., survey data).
@@ -88,6 +88,15 @@ def pontius_equations(df, colx, coly):
 
 #Calculate some errors
 def metrics_accuracy(df, colx, coly, decimals):
+    """Calculates accuracy metrics for two columns in a DataFrame.
+    Args:
+        df (pd.DataFrame): DataFrame containing the data.
+        colx (str): The column name for the reference data (e.g., survey data).
+        coly (str): The column name for the prediction data (e.g., model output).
+        decimals (int): Number of decimal places to round the results.
+    Returns:
+        list: A list containing R-squared, RMSE, and MAE.
+    """
     res = stats.linregress(df[colx], df[coly])
     r2 = round(res.rvalue**2, decimals)
     n = len(df[colx])

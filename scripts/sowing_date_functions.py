@@ -345,13 +345,18 @@ def extract_phenology_metrics(df_smoothed, season_info, config):
     sensor = df_smoothed.sensor.unique()[0]
     fkey = df_smoothed.fkey.unique()[0]
     # --- 1. Find Max and Min NDVI within the Season ---
-    start_date_phe, end_date_phe = season_info["start"], season_info["end"]
-    
+    start_date_phe, end_date_phe, end_date_sowing = season_info["start"], season_info["end"],  season_info["end_sowing"]
+
+    # Check if sowing date from survey is in the range of the season
+    if pd.to_datetime(sow_date_survey).date() < start_date_phe or pd.to_datetime(sow_date_survey).date() > end_date_sowing:
+        return None
+
+    # Convert to pandas Timestamp for comparison
     t0_max = start_date_phe + pd.DateOffset(days=30) #max ndvi sohuld be at least 30 days after start_date (phenology)
 
     #grab the max from the same colum to be use in the sow date analysis.
     field_max = df_smoothed[(df_smoothed[date_col].dt.date > t0_max.date()) & (df_smoothed[date_col].dt.date < end_date_phe)].reset_index(drop = True)
-    
+    # 
     if field_max.empty or len(field_max[vi_col].unique()) < 2:
         return None
 
@@ -362,30 +367,60 @@ def extract_phenology_metrics(df_smoothed, season_info, config):
     t1_min = pd.Timestamp(start_date_phe)
     t2_min = pd.Timestamp(day_max)
     
+
     # --- 2. Calculate Derivatives to Find Inflection Points (SOS) ---
     df_derivative = df_smoothed[(df_smoothed[date_col] >= t1_min) & (df_smoothed[date_col] <= t2_min)].reset_index(drop = True)
     if len(df_derivative) ==0:
         return None
         
     df_derivative.sort_values(by=date_col, inplace=True)
-    df_derivative['first_dif_rec'] = np.where(df_derivative[vi_col].diff() > 0, 1, 0)
-    df_derivative['second_dif_rec'] = np.where(df_derivative['first_dif_rec'].diff() > 0, 1, 0)
+    # Calculate the first derivative (change in NDVI)
+    df_derivative['first_derivative'] = df_derivative[vi_col].diff()
+    # First derevative difference (1 if positive change, 0 if negative)
+    df_derivative['first_dif_rec'] = np.where(df_derivative['first_derivative'] > 0, 1, 0)
+    # Calculate the second derivative (change in first derivative)
+    df_derivative['second_derivative'] = df_derivative['first_dif_rec'].diff()
+    # Second derivative difference (1 if positive change, 0 if negative)
+    df_derivative['second_dif_rec'] = np.where(df_derivative['second_derivative'] > 0, 1, 0)
 
+    # Identify inflection points where the second derivative is positive
+    # This indicates a change from negative to positive slope in the first derivative.
     inflection_points = df_derivative[df_derivative['second_dif_rec'] == 1]
-    if inflection_points.empty:
+    
+    # Check if there are any positive inflection points
+    if (sum(inflection_points['second_dif_rec']== 1)<1):
         return None
+    
 
     # --- 3. Apply the "Minimum" Approach ---
-    # Find the inflection point with the lowest NDVI value.
-    sos_point = inflection_points.loc[inflection_points[vi_col].idxmin()]
-    sos_detected_date = sos_point[date_col]
-    sos_detected_dop = (sos_detected_date - init_date).days
-    
+    # 3.1. Find the inflection point with the minimum NDVI value to get its date
+    min_inflection_point = inflection_points.loc[inflection_points[vi_col].idxmin()]
+    date_of_min_inflection = min_inflection_point[date_col]
+
+    # 3.2. Find the first available data point on or after that date
+    # This is the implementation of your requested logic.
+    sos_point_df = df_derivative[df_derivative[date_col] >= date_of_min_inflection].head(1)
+
+    # Check if the filter returned any rows before proceeding
+    if sos_point_df.empty:
+        return None
+    # Find the point with the minimum NDVI value among the inflection points 
+    # Since .head(1) returns a DataFrame, we extract the value with .values[0]
+    sos_detected_date = pd.to_datetime(sos_point_df[date_col].values[0])
+    sos_detected_dop = (sos_detected_date - init_date).days    
     # Calculate the estimated sowing date by subtracting the delta
     estimated_sowing_date = sos_detected_date - pd.Timedelta(days=delta_days)
     estimated_sowing_dop = (estimated_sowing_date - init_date).days
-    # difference from Y-X
-    Di = estimated_sowing_date-sow_date_survey
+    
+    # Safely calculate the difference from Y-X ---
+    if pd.isna(sow_date_survey):
+        Di = pd.NaT  # Assign NaT if survey date is missing
+    else:
+        Di = estimated_sowing_date - sow_date_survey
+    # # difference from Y-X
+    # Di = estimated_sowing_date-sow_date_survey
+    
+    
     # --- 4. Compile and Return Results ---
     result_df = pd.DataFrame([{
         'fkey': fkey,
